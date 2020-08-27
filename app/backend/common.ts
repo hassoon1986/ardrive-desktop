@@ -2,10 +2,12 @@
 import mime from 'mime-types';
 import fetch from 'node-fetch';
 import fs from 'fs';
-import { sep, join, extname, basename } from 'path';
+import { sep, extname } from 'path';
 import { Wallet } from './types';
 
 export const gatewayURL = 'https://arweave.net/';
+export const appName = 'ArDrive';
+export const appVersion = '0.1.2';
 
 // Pauses application
 const sleep = async (ms: number) => {

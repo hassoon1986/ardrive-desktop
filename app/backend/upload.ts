@@ -1,5 +1,5 @@
 // upload.js
-import { sep, join, extname, basename } from 'path';
+import { sep, basename } from 'path';
 import fs from 'fs';
 import {
   createArDriveTransaction,
@@ -17,26 +17,14 @@ import {
 import { encryptFile, checksumFile, encryptTag } from './crypto';
 import {
   getByFileName_fromCompleted,
-  getByFilePath_fromQueue,
-  setCompletedFileToDownload,
   getFilesToUpload_fromQueue,
   remove_fromQueue,
   getAllUploaded_fromQueue,
   completeFile,
-  queueFile,
-  getByFileNameAndHash_fromCompleted,
 } from './db';
 
 // ArDrive Version Tag
-const VERSION = '0.1.1';
-
-// Recursively returns all files in a directory
-const readDirR = (dir: string): any =>
-  fs.statSync(dir).isDirectory()
-    ? Array.prototype.concat(
-        ...fs.readdirSync(dir).map((f) => readDirR(join(dir, f)))
-      )
-    : dir;
+// const VERSION = '0.1.1';
 
 // Tags and Uploads a single file to your ArDrive
 async function uploadArDriveFile(
@@ -135,108 +123,6 @@ async function uploadArDriveFile(
     return 'Error uploading file';
   }
 }
-
-// Checks for any new files in the folder that arent synced or queued
-export const queueNewFiles = async (
-  user: { sync_folder_path: any; owner: any },
-  sync_folder_path: string | any[]
-) => {
-  try {
-    console.log('---Queueing New Files in %s---', sync_folder_path);
-    let allFiles = null;
-    try {
-      allFiles = readDirR(user.sync_folder_path);
-    } catch (err) {
-      console.error(err);
-      return 'Unable to scan directory';
-    }
-
-    // listing all files using forEach
-    await asyncForEach(allFiles, async (file: any) => {
-      const fullpath = file;
-      let stats = null;
-      try {
-        stats = fs.statSync(fullpath);
-      } catch (err) {
-        console.log('File not ready yet %s', fullpath);
-        return;
-      }
-
-      let extension = extname(fullpath);
-      const fileName = basename(fullpath);
-      extension = extension.toLowerCase();
-
-      if (extension !== '.enc' && stats.size !== 0) {
-        const localFileHash = await checksumFile(fullpath);
-        let ardrivePublic = '0';
-
-        if (fullpath.indexOf(sync_folder_path.concat('\\Public\\')) !== -1) {
-          // Public by choice, do not encrypt
-          ardrivePublic = '1';
-        }
-
-        const fileToCheck = {
-          file_name: fileName,
-          file_hash: localFileHash,
-        };
-        const matchingFileNameAndHash = await getByFileNameAndHash_fromCompleted(
-          fileToCheck
-        );
-        const matchingFileName = await getByFileName_fromCompleted(fileName);
-        const isQueued = await getByFilePath_fromQueue(fullpath);
-        let ardrivePath = fullpath.replace(user.sync_folder_path, '');
-        ardrivePath = ardrivePath.replace(fileName, '');
-
-        if (matchingFileNameAndHash) {
-          // console.log("%s is already completed with a matching file name and file hash
-        } else if (matchingFileName) {
-          // A file exists on the permaweb with a different hash.  Changing that file's local status to 0 to force user to resolve conflict.
-          setCompletedFileToDownload(fileName);
-          // console.log ("Forcing user to resolve conflict %s", file)
-        } else if (isQueued) {
-          await getByFileName_fromCompleted(fileName);
-          // console.log ("%s found in the queue", fullpath)
-        } else {
-          // console.log("%s queueing file", fullpath)
-          const fileToQueue = {
-            owner: user.owner,
-            file_path: fullpath,
-            file_name: fileName,
-            file_hash: localFileHash,
-            file_size: stats.size,
-            isPublic: ardrivePublic,
-            file_modified_date: stats.mtime,
-            tx_id: '0',
-            ardrive_path: ardrivePath,
-            ardrive_version: VERSION,
-          };
-          queueFile(fileToQueue);
-        }
-      }
-    });
-
-    const filesToUpload = await getFilesToUpload_fromQueue();
-    await asyncForEach(
-      filesToUpload,
-      async (fileToUpload: { file_path: string }) => {
-        fs.access(fileToUpload.file_path, fs.constants.F_OK, async (err) => {
-          if (err) {
-            console.log(
-              '%s was not found locally anymore.  Removing from the queue',
-              fileToUpload.file_path
-            );
-            await remove_fromQueue(fileToUpload.file_path);
-          }
-        });
-      }
-    );
-
-    return 'SUCCESS Queuing Files';
-  } catch (err) {
-    console.log(err);
-    return 'ERROR Queuing Files';
-  }
-};
 
 // Gets the price of latest upload batch
 export const getPriceOfNextUploadBatch = async () => {

@@ -78,6 +78,7 @@ const createProfileTable = async () => {
   const sql = `CREATE TABLE IF NOT EXISTS Profile (
         id integer NOT NULL PRIMARY KEY,
         owner text NOT NULL UNIQUE,
+        arDriveId NOT NULL UNIQUE,
         email text,
         data_protection_key text,
         wallet_private_key text,
@@ -91,29 +92,29 @@ const createProfileTable = async () => {
 const createSyncTable = () => {
   const sql = `CREATE TABLE IF NOT EXISTS Sync (
         id integer NOT NULL PRIMARY KEY,
-        tx_id text UNIQUE,
-        permaweb_link text,
-        owner text,
-        file_path text,
-        file_name text,
-        file_extension text,
-        file_size text,
-        sync_status text,
-        content_type text,
-        file_hash text,
+        metaDataTxId text,
+        dataTxId text,
+        appName text DEFAULT ArDrive,
+        appVersion text,
+        unixTime integer,
+        contentType text,
+        entityType text,
+        arDriveId text,
+        parentFolderId text,
+        fileId text,
+        filePath text,
+        arDrivePath text,
+        fileName text,
+        fileHash text,
+        fileSize text,
+        fileModifiedDate text,
+        fileVersion integer DEFAULT 0,
+        permawebLink text,
+        syncStatus text,
         ignore INTEGER DEFAULT 0,
-        queuedDate text,
-        submittedDate text,
-        advancedEncryption text,
-        isLocal text,
-        isApproved text,
         isPublic text DEFAULT 0,
-        file_modified_date text,
-        ardrive_path text,
-        keywords text,
-        prev_tx_id text,
-        block_hash text,
-        file_version INTEGER DEFAULT 0
+        isLocal text,
+        isApproved text
      );`;
   return run(sql);
 };
@@ -163,44 +164,123 @@ const createCompletedTable = () => {
   return run(sql);
 };
 
-export const queueFile = (file: {
-  owner: any;
-  file_path: any;
-  file_name: any;
-  file_hash: any;
-  file_size: any;
-  file_modified_date: any;
-  tx_id: any;
+export const addFileToSyncTable = (file: {
+  appName: any;
+  appVersion: any;
+  unixTime: any;
+  contentType: any;
+  entityType: any;
+  arDriveId: any;
+  parentFolderId: any;
+  fileId: any;
+  filePath: any;
+  arDrivePath: any;
+  fileName: any;
+  fileHash: any;
+  fileSize: any;
+  fileModifiedDate: any;
+  fileVersion: any;
   isPublic: any;
-  ardrive_path: any;
-  ardrive_version: any;
+  isLocal: any;
+  metaDataTxId: any;
+  dataTxId: any;
+  syncStatus: any;
 }) => {
   const {
-    owner,
-    file_path,
-    file_name,
-    file_hash,
-    file_size,
-    file_modified_date,
-    tx_id,
+    appName,
+    appVersion,
+    unixTime,
+    contentType,
+    entityType,
+    arDriveId,
+    parentFolderId,
+    fileId,
+    filePath,
+    arDrivePath,
+    fileName,
+    fileHash,
+    fileSize,
+    fileModifiedDate,
+    fileVersion,
     isPublic,
-    ardrive_path,
-    ardrive_version,
+    isLocal,
+    metaDataTxId,
+    dataTxId,
+    syncStatus,
   } = file;
   return run(
-    'REPLACE INTO Queue (owner, file_path, file_name, file_hash, file_size, file_modified_date, tx_id, isPublic, ardrive_path, ardrive_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'REPLACE INTO Sync (appName, appVersion, unixTime, contentType, entityType, arDriveId, parentFolderId, fileId, filePath, arDrivePath, fileName, fileHash, fileSize, fileModifiedDate, fileVersion, isPublic, isLocal, metaDataTxId, dataTxId, syncStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
-      owner,
-      file_path,
-      file_name,
-      file_hash,
-      file_size,
-      file_modified_date,
-      tx_id,
+      appName,
+      appVersion,
+      unixTime,
+      contentType,
+      entityType,
+      arDriveId,
+      parentFolderId,
+      fileId,
+      filePath,
+      arDrivePath,
+      fileName,
+      fileHash,
+      fileSize,
+      fileModifiedDate,
+      fileVersion,
       isPublic,
-      ardrive_path,
-      ardrive_version,
+      isLocal,
+      metaDataTxId,
+      dataTxId,
+      syncStatus,
     ]
+  );
+};
+
+export const getFolderFromSyncTable = (folderPath: string) => {
+  return get(
+    `SELECT fileId FROM Sync WHERE filePath = ? AND entityType = 'folder'`,
+    [folderPath]
+  );
+};
+
+export const getByFilePathAndHashFromSyncTable = (file: {
+  fileHash: string;
+  filePath: string;
+}) => {
+  const { fileHash, filePath } = file;
+  return get(`SELECT * FROM Sync WHERE fileHash = ? AND filePath = ?`, [
+    fileHash,
+    filePath,
+  ]);
+};
+
+export const getByFileHashAndModifiedDateAndArDrivePathFromSyncTable = (file: {
+  fileHash: string;
+  fileModifiedDate: number;
+  arDrivePath: string;
+}) => {
+  const { fileHash, fileModifiedDate, arDrivePath } = file;
+  return get(
+    `SELECT * FROM Sync WHERE fileHash = ? AND fileModifiedDate = ? AND arDrivePath = ?`,
+    [fileHash, fileModifiedDate, arDrivePath]
+  );
+};
+
+export const getByFileHashAndModifiedDateAndFileNameFromSyncTable = (file: {
+  fileHash: string;
+  fileModifiedDate: number;
+  fileName: string;
+}) => {
+  const { fileHash, fileModifiedDate, fileName } = file;
+  return get(
+    `SELECT * FROM Sync WHERE fileHash = ? AND fileModifiedDate = ? AND fileName = ?`,
+    [fileHash, fileModifiedDate, fileName]
+  );
+};
+
+export const getByFilePathFromSyncTable = (filePath: string) => {
+  return get(
+    `SELECT * FROM Sync WHERE filePath = ? ORDER BY fileVersion DESC`,
+    [filePath]
   );
 };
 
@@ -250,6 +330,7 @@ export const completeFile = (file: {
 
 export const createArDriveProfile = (profile: {
   owner: any;
+  arDriveId: any;
   email: any | null;
   data_protection_key: any;
   wallet_private_key: any;
@@ -259,6 +340,7 @@ export const createArDriveProfile = (profile: {
 }) => {
   const {
     owner,
+    arDriveId,
     email,
     data_protection_key,
     wallet_private_key,
@@ -267,9 +349,10 @@ export const createArDriveProfile = (profile: {
     sync_folder_path,
   } = profile;
   return run(
-    'REPLACE INTO Profile (owner, email, data_protection_key, wallet_private_key, wallet_public_key, sync_schedule, sync_folder_path) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'REPLACE INTO Profile (owner, arDriveId, email, data_protection_key, wallet_private_key, wallet_public_key, sync_schedule, sync_folder_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [
       owner,
+      arDriveId,
       email,
       data_protection_key,
       wallet_private_key,
@@ -382,6 +465,7 @@ const createTablesInDB = async () => {
   await createProfileTable();
   await createQueueTable();
   await createCompletedTable();
+  await createSyncTable();
 };
 
 // Main entrypoint for database. MUST call this before anything else can happen

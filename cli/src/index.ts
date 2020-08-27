@@ -14,6 +14,7 @@ import {
   downloadMyArDriveFiles,
 } from '../../app/backend/download';
 import { setupAndGetUser, userLogin, promptForArDriveUpload } from './prompts';
+import { watchFolder } from '../../app/backend/files';
 
 async function main() {
   console.log('       ___   _____    _____   _____    _   _     _   _____  ');
@@ -48,22 +49,24 @@ async function main() {
     // Allow the user to login
     user = await userLogin(profile[0].wallet_public_key, profile[0].owner);
   }
+  watchFolder(user.sync_folder_path, user.arDriveId);
   // Run this in a loop
   while (true && user !== 0) {
-    await getMyArDriveFiles(user);
-    await queueNewFiles(user, user.sync_folder_path);
+    // await getMyArDriveFiles(user);
+    // await queueNewFiles(user, user.sync_folder_path);
+
     await checkUploadStatus();
     uploadBatch = await getPriceOfNextUploadBatch();
-    if (uploadBatch) {
+    /* if (uploadBatch) {
       readyToUpload = await promptForArDriveUpload(
         uploadBatch.totalArDrivePrice,
         uploadBatch.totalSize,
         uploadBatch.totalNumberOfFiles
       );
       await uploadArDriveFiles(user, readyToUpload);
-    }
+    } */
 
-    await downloadMyArDriveFiles(user);
+    // await downloadMyArDriveFiles(user);
     const today = new Date();
     const date = `${today.getFullYear()}-${
       today.getMonth() + 1
