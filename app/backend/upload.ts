@@ -17,14 +17,11 @@ import {
 import { encryptFile, checksumFile, encryptTag } from './crypto';
 import {
   getByFileName_fromCompleted,
-  getFilesToUpload_fromQueue,
+  getFilesToUploadFromSyncTable,
   remove_fromQueue,
   getAllUploaded_fromQueue,
   completeFile,
 } from './db';
-
-// ArDrive Version Tag
-// const VERSION = '0.1.1';
 
 // Tags and Uploads a single file to your ArDrive
 async function uploadArDriveFile(
@@ -126,29 +123,54 @@ async function uploadArDriveFile(
 
 // Gets the price of latest upload batch
 export const getPriceOfNextUploadBatch = async () => {
-  let totalWinston = 0;
+  let totalWinstonData = 0;
+  let totalArweaveMetadataPrice = 0;
+  let totalNumberOfFileUploads = 0;
+  let totalNumberOfMetaDataFileUploads = 0;
   let totalSize = 0;
   let winston = 0;
-  const filesToUpload = await getFilesToUpload_fromQueue();
+  // Get all files with sync status of 1 or 2
+  const filesToUpload = await getFilesToUploadFromSyncTable();
   if (Object.keys(filesToUpload).length > 0) {
     await asyncForEach(
       filesToUpload,
-      async (fileToUpload: { file_size: string | number }) => {
-        totalSize += +fileToUpload.file_size;
-        winston = await getWinston(fileToUpload.file_size);
-        totalWinston += +winston;
+      async (fileToUpload: {
+        filePath: string;
+        syncStatus: string;
+        fileSize: string | number;
+      }) => {
+        console.log('Getting size for %s', fileToUpload.filePath);
+        if (fileToUpload.syncStatus === '1') {
+          totalArweaveMetadataPrice += 0.0000005;
+          totalNumberOfMetaDataFileUploads += 1;
+        } else {
+          totalSize += +fileToUpload.fileSize;
+          winston = await getWinston(fileToUpload.fileSize);
+          totalWinstonData += +winston + 0.0000005;
+          totalNumberOfFileUploads += 1;
+        }
       }
     );
-    const totalArweavePrice = totalWinston * 0.000000000001;
-    let arDriveFee = +totalArweavePrice.toFixed(9) * 0.15;
+    const totalArweaveDataPrice = totalWinstonData * 0.000000000001;
+    let arDriveFee = +totalArweaveDataPrice.toFixed(9) * 0.15;
     if (arDriveFee < 0.00001) {
       arDriveFee = 0.00001;
     }
-    const totalArDrivePrice = +totalArweavePrice.toFixed(9) + arDriveFee;
+    const totalArDrivePrice =
+      +totalArweaveDataPrice.toFixed(9) +
+      arDriveFee +
+      totalArweaveMetadataPrice;
+
+    console.log(totalArweaveDataPrice.toFixed(9));
+    console.log(totalArweaveMetadataPrice.toFixed(9));
+    console.log(totalArDrivePrice);
+    console.log(arDriveFee);
+
     return {
       totalArDrivePrice,
       totalSize: formatBytes(totalSize),
-      totalNumberOfFiles: Object.keys(filesToUpload).length,
+      totalNumberOfFileUploads,
+      totalNumberOfMetaDataFileUploads,
     };
   }
   return 0;
@@ -159,47 +181,31 @@ export const uploadArDriveFiles = async (user: any, readyToUpload: any) => {
   try {
     let filesUploaded = 0;
     console.log('---Uploading All Queued Files---');
-    const filesToUpload = await getFilesToUpload_fromQueue();
-
+    const filesToUpload = await getFilesToUploadFromSyncTable();
     if (Object.keys(filesToUpload).length > 0 && readyToUpload === 'Y') {
       // Ready to upload
       await asyncForEach(
         filesToUpload,
         async (fileToUpload: {
-          file_size: string;
-          file_path: any;
-          file_name: string;
-          ardrive_path: any;
-          file_hash: any;
-          file_modified_date: any;
+          fileSize: string;
+          filePath: any;
+          fileName: string;
+          arDrivePath: any;
+          fileHash: any;
+          fileModifiedDate: any;
+          syncStatus: any;
         }) => {
-          if (fileToUpload.file_size === '0') {
-            console.log(
-              '%s has a file size of 0 and cannot be uploaded to the Permaweb',
-              fileToUpload.file_path
-            );
-            await remove_fromQueue(fileToUpload.file_path);
-          } else if (
-            await getByFileName_fromCompleted(fileToUpload.file_name)
-          ) {
-            console.log(
-              '%s was queued, but has been previously uploaded to the Permaweb',
-              fileToUpload.file_path
-            );
-            await remove_fromQueue(fileToUpload.file_path);
-          } else {
-            await uploadArDriveFile(
-              user,
-              fileToUpload.file_path,
-              fileToUpload.ardrive_path,
-              fileToUpload.file_modified_date
-            );
-            filesUploaded += 1;
+          if (fileToUpload.syncStatus === '1') {
+            // metadata transaction only
+            console.log('Metadata uploaded!');
+          } else if (fileToUpload.syncStatus === '2') {
+            console.log('Metadata and file uploaded');
           }
+          filesUploaded += 1;
         }
       );
     }
-    if (filesUploaded < 0) {
+    if (filesUploaded > 0) {
       console.log('Uploaded %s files to your ArDrive!', filesUploaded);
     }
     return 'SUCCESS';
