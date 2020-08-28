@@ -4,15 +4,14 @@ import { setupDatabase, getAll_fromProfile } from '../../app/backend/db';
 import { getWalletBalance } from '../../app/backend/arweave';
 import { sleep } from '../../app/backend/common';
 import {
-  queueNewFiles,
   checkUploadStatus,
   uploadArDriveFiles,
   getPriceOfNextUploadBatch,
 } from '../../app/backend/upload';
-import {
+/* import {
   getMyArDriveFiles,
   downloadMyArDriveFiles,
-} from '../../app/backend/download';
+} from '../../app/backend/download'; */
 import { setupAndGetUser, userLogin, promptForArDriveUpload } from './prompts';
 import { watchFolder } from '../../app/backend/files';
 
@@ -54,17 +53,17 @@ async function main() {
   while (true && user !== 0) {
     // await getMyArDriveFiles(user);
     // await queueNewFiles(user, user.sync_folder_path);
-
     await checkUploadStatus();
     uploadBatch = await getPriceOfNextUploadBatch();
-    /* if (uploadBatch) {
+    if (uploadBatch) {
       readyToUpload = await promptForArDriveUpload(
         uploadBatch.totalArDrivePrice,
         uploadBatch.totalSize,
-        uploadBatch.totalNumberOfFiles
+        uploadBatch.totalNumberOfFileUploads,
+        uploadBatch.totalNumberOfMetaDataFileUploads
       );
       await uploadArDriveFiles(user, readyToUpload);
-    } */
+    }
 
     // await downloadMyArDriveFiles(user);
     const today = new Date();

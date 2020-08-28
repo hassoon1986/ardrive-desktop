@@ -156,11 +156,17 @@ export const userLogin = async (walletPublicKey, owner) => {
   return user;
 };
 
-export const promptForArDriveUpload = async (price, size, amountOfFiles) => {
+export const promptForArDriveUpload = async (
+  price,
+  size,
+  amountOfFiles,
+  amountOfMetaDataFiles
+) => {
   console.log(
-    'Uploading %s files (%s) to the Permaweb, totaling %s AR',
+    'Uploading %s files (%s with %s metadata updates) to the Permaweb, totaling %s AR',
     amountOfFiles,
     size,
+    amountOfMetaDataFiles,
     price
   );
   const readyToUpload = prompt('Upload all unsynced files? Y/N ');
