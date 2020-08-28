@@ -53,7 +53,8 @@ const extToMime = (fullpath: string): string => {
 
 // Gets the price of AR based on amount of data
 const getWinston = async (bytes: any) => {
-  const response = await fetch(`https://arweave.net/price/${bytes}`);
+  // const response = await fetch(`https://arweave.net/price/${bytes}`);
+  const response = await fetch(`https://perma.online/price/${bytes}`);
   const winston = await response.json();
   return winston;
 };

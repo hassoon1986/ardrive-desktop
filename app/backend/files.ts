@@ -170,7 +170,7 @@ const queueFolder = async (
   const isQueuedOrCompleted = await getFolderFromSyncTable(folderPath);
 
   if (isQueuedOrCompleted) {
-    // The folder is already in the queue and ready to be processed.
+    // The folder is already in the queue, or it is the root and we do not want to process.
   } else {
     console.log('%s queueing folder', folderPath);
     try {
@@ -191,9 +191,11 @@ const queueFolder = async (
     const fileName = folderPath.split(sep).pop();
     const fileModifiedDate = stats.mtimeMs;
     const arDrivePath = folderPath.replace(syncFolderPath, '');
+    let syncStatus = '1'; // Set sync status to 1 for meta data transaction
 
     if (folderPath === syncFolderPath) {
       parentFolderId = uuidv4(); // This will act as the root parent Folder ID
+      syncStatus = '0'; // Set sync status to 0
     } else {
       const parentFolderPath = dirname(folderPath);
       parentFolderId = await getFolderFromSyncTable(parentFolderPath);
@@ -220,7 +222,7 @@ const queueFolder = async (
       isLocal: '1',
       metaDataTxId: '1',
       dataTxId: '0',
-      syncStatus: '1', // Sync status of 1 = metadatatx only
+      syncStatus, // Sync status of 1 = metadatatx only
     };
     addFileToSyncTable(folderToQueue);
   }

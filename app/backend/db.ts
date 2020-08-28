@@ -284,6 +284,23 @@ export const getByFilePathFromSyncTable = (filePath: string) => {
   );
 };
 
+export const getFilesToUploadFromSyncTable = () => {
+  return all('SELECT * FROM Sync WHERE syncStatus = 1 OR syncStatus = 2 ');
+};
+
+export const updateFileMetaDataSyncStatus = (file: {
+  syncStatus: any;
+  metaDataTxId: any;
+  id: any;
+}) => {
+  const { syncStatus, metaDataTxId, id } = file;
+  return get(`UPDATE Sync SET syncStatus = ?, metaDataTxId = ? WHERE id = ?`, [
+    syncStatus,
+    metaDataTxId,
+    id,
+  ]);
+};
+
 export const completeFile = (file: {
   owner: any;
   file_name: any;

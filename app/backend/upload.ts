@@ -1,20 +1,12 @@
 // upload.js
-import { sep, basename } from 'path';
 import fs from 'fs';
 import {
-  createArDriveTransaction,
-  sendArDriveFee,
+  createArDriveMetaDataTransaction,
+  // sendArDriveFee,
   getTransactionStatus,
 } from './arweave';
-import {
-  asyncForEach,
-  getWinston,
-  formatBytes,
-  gatewayURL,
-  sleep,
-  extToMime,
-} from './common';
-import { encryptFile, checksumFile, encryptTag } from './crypto';
+import { asyncForEach, getWinston, formatBytes, gatewayURL } from './common';
+// import { encryptFile, checksumFile, encryptTag } from './crypto';
 import {
   getByFileName_fromCompleted,
   getFilesToUploadFromSyncTable,
@@ -24,100 +16,84 @@ import {
 } from './db';
 
 // Tags and Uploads a single file to your ArDrive
-async function uploadArDriveFile(
-  user: {
-    sync_folder_path: string;
-    password: any;
-    jwk: string;
-    owner: string;
-  },
-  filePath: string,
-  arDrivePath: any,
-  modifiedDate: any
+
+async function uploadArDriveFileMetaData(
+  user: { sync_folder_path: string; password: any; jwk: string; owner: string },
+  fileToUpload: {
+    id: any;
+    appName: string;
+    appVersion: string;
+    unixTime: string;
+    contentType: string;
+    entityType: string;
+    arDriveId: string;
+    parentFolderId: string;
+    fileId: string;
+    fileSize: string;
+    filePath: any;
+    fileName: string;
+    arDrivePath: any;
+    fileHash: any;
+    fileModifiedDate: any;
+    fileVersion: any;
+    isPublic: any;
+    syncStatus: any;
+    dataTxId: any;
+  }
 ) {
   try {
-    let arDrivePublic;
-    let arPrice;
-    let stats;
-    let encryptedStats;
-    const fileName = basename(filePath);
-    const fileHash = await checksumFile(filePath);
-    const contentType = extToMime(filePath);
+    // create primary metadata, used to tag this transaction
+    const primaryFileMetaDataTags = {
+      appName: fileToUpload.appName,
+      appVersion: fileToUpload.appVersion,
+      unixTime: fileToUpload.unixTime,
+      contentType: fileToUpload.contentType,
+      entityType: fileToUpload.entityType,
+      arDriveId: fileToUpload.arDriveId,
+      parentFolderId: fileToUpload.parentFolderId,
+      fileId: fileToUpload.fileId,
+    };
+    // create secondary metadata, used to further ID the file (with encryption if necessary)
+    const secondaryFileMetaDataTags = {
+      name: fileToUpload.fileName,
+      size: fileToUpload.fileSize,
+      hash: fileToUpload.fileHash,
+      path: fileToUpload.arDrivePath,
+      modifiedDate: fileToUpload.fileModifiedDate,
+      dataTxId: fileToUpload.dataTxId,
+      fileVersion: fileToUpload.fileVersion,
+    };
+    // Convert to JSON string
+    const secondaryFileMetaDataJSON = JSON.stringify(secondaryFileMetaDataTags);
 
-    if (
-      filePath.indexOf(user.sync_folder_path.concat(sep, 'Public', sep)) !== -1
-    ) {
-      // Public by choice, do not encrypt
-      arDrivePublic = '1';
-      arPrice = await createArDriveTransaction(
+    if (fileToUpload.isPublic === '1') {
+      // Public file, do not encrypt
+      await createArDriveMetaDataTransaction(
         user,
-        filePath,
-        fileName,
-        fileHash,
-        contentType,
-        arDrivePath,
-        modifiedDate,
-        arDrivePublic
+        primaryFileMetaDataTags,
+        secondaryFileMetaDataJSON,
+        fileToUpload.filePath,
+        fileToUpload.id
       );
     } else {
-      // private by default, encrypt file
-      arDrivePublic = '0';
-      const encryptedFilePath = filePath.concat('.enc');
-      await encryptFile(filePath, user.password, user.jwk);
-      await sleep(250);
-      stats = fs.statSync(filePath);
-      encryptedStats = fs.statSync(encryptedFilePath);
-      if (encryptedStats.size > stats.size) {
-        const encryptedFileName = await encryptTag(
-          fileName,
-          user.password,
-          user.jwk
-        );
-        const encryptedFileHash = await encryptTag(
-          fileHash,
-          user.password,
-          user.jwk
-        );
-        const encryptedContentType = await encryptTag(
-          contentType,
-          user.password,
-          user.jwk
-        );
-        const encryptedArDrivePath = await encryptTag(
-          arDrivePath,
-          user.password,
-          user.jwk
-        );
-        const encryptedModifiedDate = await encryptTag(
-          modifiedDate,
-          user.password,
-          user.jwk
-        );
-        arPrice = await createArDriveTransaction(
-          user,
-          encryptedFilePath,
-          JSON.stringify(encryptedFileName),
-          JSON.stringify(encryptedFileHash),
-          JSON.stringify(encryptedContentType),
-          JSON.stringify(encryptedArDrivePath),
-          JSON.stringify(encryptedModifiedDate),
-          arDrivePublic
-        );
-        // Delete the .enc file since it has been uploaded
-        fs.unlinkSync(encryptedFilePath);
-        // Send the ArDrive fee to ARDRIVE Profit Sharing Comunity smart contract
-        await sendArDriveFee(user, arPrice.toFixed(6));
-      } else {
-        // Issue with encrypting - delete the encrypted file and try again
-        console.log('ERROR Encryption has failed... retrying');
-        fs.unlinkSync(encryptedFilePath);
-        await uploadArDriveFile(user, filePath, arDrivePath, modifiedDate);
-      }
+      // Private file, so it must be encrypted
+      const encryptedSecondaryFileMetaDataJSON = await encryptTag(
+        secondaryFileMetaDataJSON,
+        user.password,
+        user.jwk
+      );
+      await createArDriveMetaDataTransaction(
+        user,
+        primaryFileMetaDataTags,
+        JSON.stringify(encryptedSecondaryFileMetaDataJSON),
+        fileToUpload.filePath,
+        fileToUpload.id
+      );
     }
-    return 'Uploaded';
+    return 'Success';
   } catch (err) {
     console.log(err);
-    return 'Error uploading file';
+    return 'Error uploading file metadata';
   }
 }
 
@@ -187,18 +163,32 @@ export const uploadArDriveFiles = async (user: any, readyToUpload: any) => {
       await asyncForEach(
         filesToUpload,
         async (fileToUpload: {
+          id: any;
+          appName: string;
+          appVersion: string;
+          unixTime: string;
+          contentType: string;
+          entityType: string;
+          arDriveId: string;
+          parentFolderId: string;
+          fileId: string;
           fileSize: string;
           filePath: any;
           fileName: string;
           arDrivePath: any;
           fileHash: any;
           fileModifiedDate: any;
+          fileVersion: any;
+          isPublic: any;
           syncStatus: any;
+          dataTxId: any;
         }) => {
           if (fileToUpload.syncStatus === '1') {
             // metadata transaction only
+            await uploadArDriveFileMetaData(user, fileToUpload);
             console.log('Metadata uploaded!');
           } else if (fileToUpload.syncStatus === '2') {
+            await uploadArDriveFileMetaData(user, fileToUpload);
             console.log('Metadata and file uploaded');
           }
           filesUploaded += 1;

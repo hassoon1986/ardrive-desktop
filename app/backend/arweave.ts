@@ -1,15 +1,12 @@
 /* eslint-disable import/prefer-default-export */
 // arweave.js
 import fs from 'fs';
-import path from 'path';
 import Arweave from 'arweave/node';
 import Community from 'community-js';
 import { JWKInterface } from 'arweave/node/lib/wallet';
-import { getWinston, extToMime } from './common';
-import { checksumFile, encryptTag } from './crypto';
+import { getWinston } from './common';
 import { Wallet } from './types';
-import { updateQueueStatus } from './db';
-import { encryptText } from '../../cli/build/app/backend/crypto';
+import { updateFileMetaDataSyncStatus } from './db';
 
 // ArDrive Version Tag
 const VERSION = '0.1.1';
@@ -23,7 +20,8 @@ const arweave = Arweave.init({
 });
 
 // ArDrive Profit Sharing Community Smart Contract
-const communityTxId = '8A6RexFkpfWwuyVO98wzSFZh0d6VJuI-buTJvlwOJQ';
+const communityTxId = '-8A6RexFkpfWwuyVO98wzSFZh0d6VJuI-buTJvlwOJQ';
+
 // eslint-disable-next-line new-cap
 const community = new Community(arweave);
 
@@ -171,7 +169,7 @@ export const createArDriveTransaction = async (
       isPublic: arDrivePublic,
     };
     // Update the queue since the file is now being uploaded
-    await updateQueueStatus(fileToUpdate);
+    // await updateQueueStatus(fileToUpdate);
     while (!uploader.isComplete) {
       // eslint-disable-next-line no-await-in-loop
       await uploader.uploadChunk();
@@ -189,6 +187,78 @@ export const createArDriveTransaction = async (
     return 0;
   }
 };
+
+export const createArDriveMetaDataTransaction = async (
+  user: { jwk: string; owner: string },
+  primaryFileMetaDataTags: {
+    appName: any;
+    appVersion: any;
+    unixTime: any;
+    contentType: any;
+    entityType: any;
+    arDriveId: any;
+    parentFolderId: any;
+    fileId: any;
+  },
+  secondaryFileMetaDataJSON: any,
+  filePath: any,
+  id: any
+) => {
+  try {
+    console.log(secondaryFileMetaDataJSON);
+    const transaction = await arweave.createTransaction(
+      { data: secondaryFileMetaDataJSON },
+      JSON.parse(user.jwk)
+    );
+    const txSize = transaction.get('data_size');
+    const winston = await getWinston(txSize);
+    const arPrice = +winston * 0.000000000001;
+    console.log(
+      'Uploading %s (%d bytes) at %s to the Permaweb',
+      filePath,
+      txSize,
+      arPrice
+    );
+
+    // Tag file
+    transaction.addTag('App-Name', primaryFileMetaDataTags.appName);
+    transaction.addTag('App-Version', primaryFileMetaDataTags.appVersion);
+    transaction.addTag('Unix-Time', primaryFileMetaDataTags.unixTime);
+    transaction.addTag('Content-Type', primaryFileMetaDataTags.contentType);
+    transaction.addTag('Entity-Type', primaryFileMetaDataTags.entityType);
+    transaction.addTag('Drive-Id', primaryFileMetaDataTags.arDriveId);
+    transaction.addTag(
+      'Parent-Folder-Id',
+      primaryFileMetaDataTags.parentFolderId
+    );
+    transaction.addTag('File-Id', primaryFileMetaDataTags.fileId);
+
+    // Sign file
+    await arweave.transactions.sign(transaction, JSON.parse(user.jwk));
+    const uploader = await arweave.transactions.getUploader(transaction);
+    const fileMetaDataToUpdate = {
+      id,
+      syncStatus: '3',
+      metaDataTxId: transaction.id,
+    };
+    // Update the queue since the file metadata is now being uploaded
+    await updateFileMetaDataSyncStatus(fileMetaDataToUpdate);
+    while (!uploader.isComplete) {
+      // eslint-disable-next-line no-await-in-loop
+      await uploader.uploadChunk();
+    }
+    console.log(
+      'SUCCESS %s was submitted with TX %s',
+      filePath,
+      transaction.id
+    );
+    return arPrice;
+  } catch (err) {
+    console.log(err);
+    return 0;
+  }
+};
+
 // Create a wallet and return the key and address
 export const createArDriveWallet = async (): Promise<Wallet> => {
   try {
