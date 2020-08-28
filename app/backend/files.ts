@@ -66,11 +66,10 @@ const queueFile = async (
       // The file has been renamed.  Submit as Metadata.
       console.log('%s was just renamed', filePath);
       renamedFile.unixTime = Math.round(new Date().getTime() / 1000);
-      renamedFile.dataTx = 'LINK';
-      renamedFile.metaDataTx = '1';
+      renamedFile.metaDataTx = '0';
       renamedFile.fileName = fileName;
       renamedFile.filePath = filePath;
-      renamedFile.syncStatus = '1'; // Sync status of 1 = metadatatx only
+      renamedFile.fileMetaDataSyncStatus = '1'; // Sync status of 1 = metadatatx only
       addFileToSyncTable(renamedFile);
       return;
     }
@@ -81,12 +80,12 @@ const queueFile = async (
       // Add new version of existing file
       newFileVersion.unixTime = Math.round(new Date().getTime() / 1000);
       newFileVersion.fileVersion += 1;
-      newFileVersion.metaDataTx = '1';
-      newFileVersion.dataTx = '1';
+      newFileVersion.metaDataTx = '0';
+      newFileVersion.dataTx = '0';
       newFileVersion.fileModifiedDate = fileModifiedDate;
       newFileVersion.fileHash = fileHash;
       newFileVersion.fileSize = stats.size;
-      newFileVersion.syncStatus = '2'; // Sync status of 2 = data+metadata tx needed
+      newFileVersion.fileDataSyncStatus = '1'; // Sync status of 1
       console.log(
         '%s updating file version to %s',
         filePath,
@@ -109,13 +108,12 @@ const queueFile = async (
     );
     if (movedFile) {
       movedFile.unixTime = Math.round(new Date().getTime() / 1000);
-      movedFile.dataTx = 'LINK';
-      movedFile.metaDataTx = '1';
+      movedFile.metaDataTx = '0';
       movedFile.fileName = fileName;
       movedFile.filePath = filePath;
       movedFile.arDrivePath = arDrivePath;
       movedFile.parentFolderId = parentFolderId.fileId;
-      movedFile.syncStatus = '1'; // Sync status of 1 = metadatatx only
+      movedFile.fileMetaDataSyncStatus = '1'; // Sync status of 1 = metadatatx only
       addFileToSyncTable(movedFile);
       console.log('%s has been moved', filePath);
       return;
@@ -150,9 +148,10 @@ const queueFile = async (
       fileVersion: 0,
       isPublic,
       isLocal: '1',
-      metaDataTxId: '1',
-      dataTxId: '1',
-      syncStatus: '2', // Sync status of 2 = data+metadata tx needed
+      metaDataTxId: '0',
+      dataTxId: '0',
+      fileDataSyncStatus: '1', // Sync status of 1 requires a data tx
+      fileMetaDataSyncStatus: '1', // Sync status of 1 requires a metadata tx
     };
     addFileToSyncTable(newFileToQueue);
   }
@@ -191,15 +190,18 @@ const queueFolder = async (
     const fileName = folderPath.split(sep).pop();
     const fileModifiedDate = stats.mtimeMs;
     const arDrivePath = folderPath.replace(syncFolderPath, '');
-    let syncStatus = '1'; // Set sync status to 1 for meta data transaction
+    let fileMetaDataSyncStatus = '1'; // Set sync status to 1 for meta data transaction
 
     if (folderPath === syncFolderPath) {
       parentFolderId = uuidv4(); // This will act as the root parent Folder ID
-      syncStatus = '0'; // Set sync status to 0
+      fileMetaDataSyncStatus = '0'; // Set sync status to 0
     } else {
       const parentFolderPath = dirname(folderPath);
       parentFolderId = await getFolderFromSyncTable(parentFolderPath);
       parentFolderId = parentFolderId.fileId;
+      if (folderPath === syncFolderPath.concat('\\Public')) {
+        fileMetaDataSyncStatus = '0';
+      }
     }
 
     const folderToQueue = {
@@ -220,9 +222,10 @@ const queueFolder = async (
       fileVersion: '0',
       isPublic,
       isLocal: '1',
-      metaDataTxId: '1',
+      metaDataTxId: '0',
       dataTxId: '0',
-      syncStatus, // Sync status of 1 = metadatatx only
+      fileDataSyncStatus: '0', // Folders do not require a data tx
+      fileMetaDataSyncStatus, // Sync status of 1 requries a metadata tx
     };
     addFileToSyncTable(folderToQueue);
   }
