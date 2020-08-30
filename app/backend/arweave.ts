@@ -3,13 +3,11 @@
 import fs from 'fs';
 import Arweave from 'arweave/node';
 import Community from 'community-js';
+import fetch from 'node-fetch';
 import { JWKInterface } from 'arweave/node/lib/wallet';
-import { getWinston } from './common';
+import { getWinston, appName, appVersion } from './common';
 import { Wallet } from './types';
 import { updateFileMetaDataSyncStatus, updateFileDataSyncStatus } from './db';
-
-// ArDrive Version Tag
-const VERSION = '0.1.1';
 
 const arweave = Arweave.init({
   // host: 'perma.online', // ARCA Community Gateway
@@ -44,33 +42,49 @@ export const getLocalWallet = async (existingWalletPath: string) => {
 };
 
 // Gets all of the transactions from a user's wallet, filtered by owner and ardrive version.
-export const getAllMyTxIds = async (user: {
-  wallet_public_key: any;
-  owner: any;
-}): Promise<string[]> => {
+export const getAllMyDataFileTxs = async (
+  walletPublicKey: any,
+  arDriveId: any
+) => {
   try {
-    const txids = await arweave.arql({
-      op: 'and',
-      expr1: {
-        op: 'equals',
-        expr1: 'from',
-        expr2: user.wallet_public_key,
-      },
-      expr2: {
-        op: 'and',
-        expr1: {
-          op: 'equals',
-          expr1: 'User-Agent',
-          expr2: `ArDrive/${VERSION}`,
-        },
-        expr2: {
-          op: 'equals',
-          expr1: 'ArDrive-Owner',
-          expr2: user.owner,
-        },
-      },
-    });
-    return txids;
+    const query = {
+      query: `query {
+      transactions(
+        first: 10
+        sort: HEIGHT_ASC
+        owners: ["${walletPublicKey}"]
+        tags: [
+          { name: "App-Name", values: "${appName}" }
+          { name: "App-Version", values: "${appVersion}" }
+          { name: "Drive-Id", values: "${arDriveId}" }
+          { name: "Entity-Type", values: "file" }
+        ]
+      ) {
+        edges {
+          node {
+            id
+            block {
+              id
+              timestamp
+              height
+              previous
+            }
+            tags {
+              name
+              value
+            }
+          }
+        }
+      }
+    }`,
+    };
+    const response = await arweave.api
+      .request()
+      .post('https://arweave.dev/graphql', query);
+    const { data } = response.data;
+    const { transactions } = data;
+    const { edges } = transactions;
+    return edges;
   } catch (err) {
     // console.log(err);
     return Promise.reject(err);
