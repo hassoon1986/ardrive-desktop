@@ -150,6 +150,7 @@ const queueFile = async (
       isLocal: '1',
       metaDataTxId: '0',
       dataTxId: '0',
+      permaWebLink: '',
       fileDataSyncStatus: '1', // Sync status of 1 requires a data tx
       fileMetaDataSyncStatus: '1', // Sync status of 1 requires a metadata tx
     };
@@ -224,6 +225,7 @@ const queueFolder = async (
       isLocal: '1',
       metaDataTxId: '0',
       dataTxId: '0',
+      permaWebLink: '',
       fileDataSyncStatus: '0', // Folders do not require a data tx
       fileMetaDataSyncStatus, // Sync status of 1 requries a metadata tx
     };

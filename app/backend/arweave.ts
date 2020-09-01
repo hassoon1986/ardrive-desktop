@@ -50,14 +50,13 @@ export const getAllMyDataFileTxs = async (
     const query = {
       query: `query {
       transactions(
-        first: 10
+        first: 50
         sort: HEIGHT_ASC
         owners: ["${walletPublicKey}"]
         tags: [
           { name: "App-Name", values: "${appName}" }
           { name: "App-Version", values: "${appVersion}" }
           { name: "Drive-Id", values: "${arDriveId}" }
-          { name: "Entity-Type", values: "file" }
         ]
       ) {
         edges {
@@ -80,6 +79,7 @@ export const getAllMyDataFileTxs = async (
     };
     const response = await arweave.api
       .request()
+      // .post('http://arca.arweave.io/graphql', query);
       .post('https://arweave.dev/graphql', query);
     const { data } = response.data;
     const { transactions } = data;
@@ -102,8 +102,19 @@ export const getTransaction = async (txid: string): Promise<any> => {
   }
 };
 
-// Gets only the data of a given transaction
+// Gets only the data of a given ArDrive Data transaction
 export const getTransactionData = async (txid: string) => {
+  try {
+    const data = await arweave.transactions.getData(txid, { decode: true });
+    return data;
+  } catch (err) {
+    console.log(err);
+    return Promise.reject(err);
+  }
+};
+
+// Gets only the JSON data of a given ArDrive MetaData transaction
+export const getTransactionMetaData = async (txid: string) => {
   try {
     const data = await arweave.transactions.getData(txid, { decode: true });
     return data;

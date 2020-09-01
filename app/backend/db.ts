@@ -92,7 +92,7 @@ const createProfileTable = async () => {
 const createSyncTable = () => {
   const sql = `CREATE TABLE IF NOT EXISTS Sync (
         id integer NOT NULL PRIMARY KEY,
-        metaDataTxId text,
+        metaDataTxId text NOT NULL,
         dataTxId text,
         appName text DEFAULT ArDrive,
         appVersion text,
@@ -109,7 +109,7 @@ const createSyncTable = () => {
         fileSize text,
         fileModifiedDate text,
         fileVersion integer DEFAULT 0,
-        permawebLink text,
+        permaWebLink text,
         fileDataSyncStatus text,
         fileMetaDataSyncStatus text,
         ignore INTEGER DEFAULT 0,
@@ -187,6 +187,7 @@ export const addFileToSyncTable = (file: {
   dataTxId: any;
   fileDataSyncStatus: any;
   fileMetaDataSyncStatus: any;
+  permaWebLink: any;
 }) => {
   const {
     appName,
@@ -210,9 +211,10 @@ export const addFileToSyncTable = (file: {
     dataTxId,
     fileDataSyncStatus,
     fileMetaDataSyncStatus,
+    permaWebLink,
   } = file;
   return run(
-    'REPLACE INTO Sync (appName, appVersion, unixTime, contentType, entityType, arDriveId, parentFolderId, fileId, filePath, arDrivePath, fileName, fileHash, fileSize, fileModifiedDate, fileVersion, isPublic, isLocal, metaDataTxId, dataTxId, fileDataSyncStatus, fileMetaDataSyncStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'REPLACE INTO Sync (appName, appVersion, unixTime, contentType, entityType, arDriveId, parentFolderId, fileId, filePath, arDrivePath, fileName, fileHash, fileSize, fileModifiedDate, fileVersion, isPublic, isLocal, metaDataTxId, dataTxId, fileDataSyncStatus, fileMetaDataSyncStatus, permaWebLink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       appName,
       appVersion,
@@ -235,6 +237,7 @@ export const addFileToSyncTable = (file: {
       dataTxId,
       fileDataSyncStatus,
       fileMetaDataSyncStatus,
+      permaWebLink,
     ]
   );
 };
@@ -324,31 +327,79 @@ export const updateFileDataSyncStatus = (file: {
   );
 };
 
-export const completeFileDataFromSyncTable = (file: {
+export const updateFileInSyncTable = (file: {
+  arDriveId: any;
+  parentFolderId: any;
+  fileId: any;
+  fileVersion: any;
+  metaDataTxId: any;
+  dataTxId: any;
   fileDataSyncStatus: any;
-  permawebLink: any;
+  fileMetaDataSyncStatus: any;
+  permaWebLink: any;
   id: any;
 }) => {
-  const { fileDataSyncStatus, permawebLink, id } = file;
+  const {
+    arDriveId,
+    parentFolderId,
+    fileId,
+    fileVersion,
+    metaDataTxId,
+    dataTxId,
+    fileDataSyncStatus,
+    fileMetaDataSyncStatus,
+    permaWebLink,
+    id,
+  } = file;
+  return run(
+    'UPDATE Sync SET arDriveId = ?, parentFolderId = ?, fileId = ?, fileVersion = ?, metaDataTxId = ?, dataTxId = ?, fileDataSyncStatus = ?, fileMetaDataSyncStatus = ?, permaWebLink = ? WHERE id = ?',
+    [
+      arDriveId,
+      parentFolderId,
+      fileId,
+      fileVersion,
+      metaDataTxId,
+      dataTxId,
+      fileDataSyncStatus,
+      fileMetaDataSyncStatus,
+      permaWebLink,
+      id,
+    ]
+  );
+};
+
+export const completeFileDataFromSyncTable = (file: {
+  fileDataSyncStatus: any;
+  permaWebLink: any;
+  id: any;
+}) => {
+  const { fileDataSyncStatus, permaWebLink, id } = file;
   return get(
-    `UPDATE Sync SET fileDataSyncStatus = ?, permawebLink = ? WHERE id = ?`,
-    [fileDataSyncStatus, permawebLink, id]
+    `UPDATE Sync SET fileDataSyncStatus = ?, permaWebLink = ? WHERE id = ?`,
+    [fileDataSyncStatus, permaWebLink, id]
   );
 };
 
 export const completeFileMetaDataFromSyncTable = (file: {
   fileMetaDataSyncStatus: any;
+  permaWebLink: any;
   id: any;
 }) => {
-  const { fileMetaDataSyncStatus, id } = file;
-  return get(`UPDATE Sync SET fileMetaDataSyncStatus = ? WHERE id = ?`, [
-    fileMetaDataSyncStatus,
-    id,
-  ]);
+  const { fileMetaDataSyncStatus, permaWebLink, id } = file;
+  return get(
+    `UPDATE Sync SET fileMetaDataSyncStatus = ?, permaWebLink = ? WHERE id = ?`,
+    [fileMetaDataSyncStatus, permaWebLink, id]
+  );
 };
 
 export const removeFromSyncTable = (id: string) => {
   return get(`DELETE FROM Sync WHERE id = ?`, [id]);
+};
+
+export const getByMetaDataTxFromSyncTable = (metaDataTxId: string) => {
+  return get(`SELECT fileName FROM Sync WHERE metaDataTxId = ?`, [
+    metaDataTxId,
+  ]);
 };
 
 export const createArDriveProfile = (profile: {
