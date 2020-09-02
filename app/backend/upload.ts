@@ -12,6 +12,7 @@ import {
   formatBytes,
   gatewayURL,
   sleep,
+  checkFileExistsSync,
 } from './common';
 import { encryptFile, encryptTag } from './crypto';
 import {
@@ -20,9 +21,9 @@ import {
   removeFromSyncTable,
   completeFileDataFromSyncTable,
   completeFileMetaDataFromSyncTable,
+  deleteFromSyncTable,
 } from './db';
 
-// Gets the price of latest upload batch
 export const getPriceOfNextUploadBatch = async () => {
   let totalWinstonData = 0;
   let totalArweaveMetadataPrice = 0;
@@ -31,18 +32,29 @@ export const getPriceOfNextUploadBatch = async () => {
   let totalNumberOfMetaDataUploads = 0;
   let totalSize = 0;
   let winston = 0;
+
   // Get all files that are ready to be uploaded
   const filesToUpload = await getFilesToUploadFromSyncTable();
   if (Object.keys(filesToUpload).length > 0) {
     await asyncForEach(
       filesToUpload,
       async (fileToUpload: {
+        id: string;
         filePath: string;
         entityType: string;
         fileMetaDataSyncStatus: any;
         fileDataSyncStatus: any;
         fileSize: string | number;
       }) => {
+        // If the file doesnt exist, we must remove it from the Sync table and not include it in our upload price
+        if (!checkFileExistsSync(fileToUpload.filePath)) {
+          console.log(
+            '%s is not local anymore.  Removing from the queue.',
+            fileToUpload.filePath
+          );
+          await deleteFromSyncTable(fileToUpload.id);
+          return 'File not local anymore';
+        }
         if (
           fileToUpload.fileMetaDataSyncStatus === '1' &&
           fileToUpload.entityType === 'folder'
@@ -62,11 +74,12 @@ export const getPriceOfNextUploadBatch = async () => {
           totalArweaveMetadataPrice += 0.0000005;
           totalNumberOfMetaDataUploads += 1;
         }
+        return 'Calculated price';
       }
     );
     const totalArweaveDataPrice = totalWinstonData * 0.000000000001;
     let arDriveFee = +totalArweaveDataPrice.toFixed(9) * 0.15;
-    if (arDriveFee < 0.00001) {
+    if (arDriveFee < 0.00001 && totalArweaveDataPrice > 0) {
       arDriveFee = 0.00001;
     }
     const totalArDrivePrice =

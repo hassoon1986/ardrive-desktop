@@ -1,6 +1,10 @@
 /* eslint-disable no-await-in-loop */
 // index.ts
-import { setupDatabase, getAll_fromProfile } from '../../app/backend/db';
+import {
+  setupDatabase,
+  getAll_fromProfile,
+  getMyFileDownloadConflicts,
+} from '../../app/backend/db';
 import { getWalletBalance } from '../../app/backend/arweave';
 import { sleep } from '../../app/backend/common';
 import {
@@ -8,12 +12,20 @@ import {
   uploadArDriveFiles,
   getPriceOfNextUploadBatch,
 } from '../../app/backend/upload';
-/* import {
-  getMyArDriveFiles,
+import {
+  getMyArDriveFilesFromPermaWeb,
   downloadMyArDriveFiles,
-} from '../../app/backend/download'; */
-import { setupAndGetUser, userLogin, promptForArDriveUpload } from './prompts';
-import { watchFolder } from '../../app/backend/files';
+} from '../../app/backend/download';
+import {
+  setupAndGetUser,
+  userLogin,
+  promptForArDriveUpload,
+  promptForFileOverwrite,
+} from './prompts';
+import {
+  watchFolder,
+  resolveFileDownloadConflict,
+} from '../../app/backend/files';
 
 async function main() {
   console.log('       ___   _____    _____   _____    _   _     _   _____  ');
@@ -42,6 +54,8 @@ async function main() {
   let user;
   let uploadBatch;
   let readyToUpload;
+  let fileDownloadConflicts;
+
   if (profile === undefined || profile.length === 0) {
     user = await setupAndGetUser();
   } else {
@@ -51,7 +65,7 @@ async function main() {
   watchFolder(user.sync_folder_path, user.arDriveId);
   // Run this in a loop
   while (true && user !== 0) {
-    // await getMyArDriveFiles(user);
+    await getMyArDriveFilesFromPermaWeb(user);
     // await queueNewFiles(user, user.sync_folder_path);
     await checkUploadStatus();
     uploadBatch = await getPriceOfNextUploadBatch();
@@ -60,12 +74,26 @@ async function main() {
         uploadBatch.totalArDrivePrice,
         uploadBatch.totalSize,
         uploadBatch.totalNumberOfFileUploads,
-        uploadBatch.totalNumberOfMetaDataFileUploads
+        uploadBatch.totalNumberOfMetaDataUploads,
+        uploadBatch.totalNumberOfFolderUploads
       );
       await uploadArDriveFiles(user, readyToUpload);
     }
-
-    // await downloadMyArDriveFiles(user);
+    await downloadMyArDriveFiles(user);
+    fileDownloadConflicts = await getMyFileDownloadConflicts();
+    if (fileDownloadConflicts) {
+      fileDownloadConflicts.forEach(async (fileDownloadConflict: any) => {
+        const response = await promptForFileOverwrite(
+          fileDownloadConflict.fullPath
+        );
+        await resolveFileDownloadConflict(
+          response,
+          fileDownloadConflict.fileName,
+          fileDownloadConflict.filePath,
+          fileDownloadConflict.id
+        );
+      });
+    }
     const today = new Date();
     const date = `${today.getFullYear()}-${
       today.getMonth() + 1

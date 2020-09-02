@@ -10,6 +10,8 @@ import {
   getByFilePathFromSyncTable,
   getByFileHashAndModifiedDateAndArDrivePathFromSyncTable,
   getByFileHashAndModifiedDateAndFileNameFromSyncTable,
+  setPermaWebFileToIgnore,
+  setPermaWebFileToOverWrite,
 } from './db';
 
 const chokidar = require('chokidar');
@@ -259,4 +261,33 @@ const watchFolder = (syncFolderPath: string, arDriveId: string) => {
   return 'Watched';
 };
 
-export { watchFolder };
+const resolveFileDownloadConflict = async (
+  resolution: string,
+  fileName: string,
+  filePath: string,
+  id: string
+) => {
+  const folderPath = dirname(filePath);
+  switch (resolution) {
+    case 'R': {
+      // Rename by adding - copy at the end.
+      let newFileName: string[] | string = fileName.split('.');
+      newFileName = newFileName[0].concat(' - Copy.', newFileName[1]);
+      const newFilePath = folderPath.concat(newFileName);
+      console.log('   ...renaming existing file to : %s', newFilePath);
+      fs.renameSync(filePath, newFilePath);
+      break;
+    }
+    case 'O': // Overwrite existing file
+      setPermaWebFileToOverWrite(id);
+      break;
+    case 'I':
+      setPermaWebFileToIgnore(id);
+      break;
+    default:
+      // Skipping this time
+      break;
+  }
+};
+
+export { watchFolder, resolveFileDownloadConflict };

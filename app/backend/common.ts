@@ -77,6 +77,16 @@ const checkOrCreateFolder = (folderPath = '') => {
   }
 };
 
+const checkFileExistsSync = (filePath: string) => {
+  let exists = true;
+  try {
+    fs.accessSync(filePath, fs.constants.F_OK);
+  } catch (e) {
+    exists = false;
+  }
+  return exists;
+};
+
 const backupWallet = async (
   backupWalletPath: string,
   wallet: Wallet,
@@ -106,4 +116,5 @@ export {
   getWinston,
   checkOrCreateFolder,
   backupWallet,
+  checkFileExistsSync,
 };

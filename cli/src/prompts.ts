@@ -160,13 +160,15 @@ export const promptForArDriveUpload = async (
   price,
   size,
   amountOfFiles,
-  amountOfMetaDataFiles
+  amountOfMetaData,
+  amountOfFolders
 ) => {
   console.log(
-    'Uploading %s files (%s with %s metadata updates) to the Permaweb, totaling %s AR',
+    'Uploading %s files, %s folders and %s changes (%s) to the Permaweb, totaling %s AR',
     amountOfFiles,
+    amountOfFolders,
+    amountOfMetaData,
     size,
-    amountOfMetaDataFiles,
     price
   );
   const readyToUpload = prompt('Upload all unsynced files? Y/N ');

@@ -291,6 +291,12 @@ export const getByFilePathFromSyncTable = (filePath: string) => {
   );
 };
 
+export const getLatestFileVersionFromSyncTable = (fileId: string) => {
+  return get(`SELECT * FROM Sync WHERE fileId = ? ORDER BY unixTime DESC`, [
+    fileId,
+  ]);
+};
+
 export const getFilesToUploadFromSyncTable = () => {
   return all(
     'SELECT * FROM Sync WHERE fileDataSyncStatus = 1 OR fileMetaDataSyncStatus = 1 '
@@ -299,7 +305,19 @@ export const getFilesToUploadFromSyncTable = () => {
 
 export const getAllUploadedFilesFromSyncTable = () => {
   return all(
-    'SELECT * FROM Sync WHERE fileDataSyncStatus = 2 OR fileMetaDataSyncStatus = 2 '
+    'SELECT * FROM Sync WHERE fileDataSyncStatus = 2 OR fileMetaDataSyncStatus = 2'
+  );
+};
+
+export const getFilesToDownload = () => {
+  return all(
+    'SELECT * FROM Sync WHERE ignore = 0 AND isLocal = 0 AND entityType = "file"'
+  );
+};
+
+export const getFoldersToCreate = () => {
+  return all(
+    'SELECT * FROM Sync WHERE ignore = 0 AND isLocal = 0 AND entityType = "folder"'
   );
 };
 
@@ -397,9 +415,11 @@ export const removeFromSyncTable = (id: string) => {
 };
 
 export const getByMetaDataTxFromSyncTable = (metaDataTxId: string) => {
-  return get(`SELECT fileName FROM Sync WHERE metaDataTxId = ?`, [
-    metaDataTxId,
-  ]);
+  return get(`SELECT * FROM Sync WHERE metaDataTxId = ?`, [metaDataTxId]);
+};
+
+export const getMyFileDownloadConflicts = () => {
+  return all('SELECT * FROM Sync WHERE isLocal = 2 ');
 };
 
 export const createArDriveProfile = (profile: {
@@ -468,6 +488,10 @@ export const getAll_fromProfileWithWalletPublicKey = (
   ]);
 };
 
+export const deleteFromSyncTable = (id: string) => {
+  return get(`DELETE FROM Sync WHERE id = ?`, [id]);
+};
+
 export const remove_fromQueue = (file_path: string) => {
   return get(`DELETE FROM Queue WHERE file_path = ?`, [file_path]);
 };
@@ -485,12 +509,16 @@ export const updateQueueStatus = (file: {
   ]);
 };
 
-export const setIncompleteFileToIgnore = (tx_id: string) => {
-  return get(`UPDATE Completed SET ignore = 1 WHERE tx_id = ?`, [tx_id]);
+export const setPermaWebFileToIgnore = (id: string) => {
+  return get(`UPDATE Sync SET ignore = 1 WHERE id = ?`, [id]);
 };
 
-export const updateCompletedStatus = (tx_id: string) => {
-  return get(`UPDATE Completed SET isLocal = 1 WHERE tx_id = ?`, [tx_id]);
+export const setPermaWebFileToOverWrite = (id: string) => {
+  return get(`UPDATE Sync SET isLocal = 2 WHERE id = ?`, [id]);
+};
+
+export const updateFileDownloadStatus = (isLocal: string, id: string) => {
+  return get(`UPDATE Sync SET isLocal = ? WHERE id = ?`, [isLocal, id]);
 };
 
 export const setCompletedFileToDownload = (file_name: string) => {
