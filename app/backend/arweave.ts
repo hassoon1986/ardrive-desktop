@@ -3,9 +3,8 @@
 import fs from 'fs';
 import Arweave from 'arweave/node';
 import Community from 'community-js';
-import fetch from 'node-fetch';
 import { JWKInterface } from 'arweave/node/lib/wallet';
-import { getWinston, appName, appVersion } from './common';
+import { getWinston, appName, appVersion, asyncForEach } from './common';
 import { Wallet } from './types';
 import { updateFileMetaDataSyncStatus, updateFileDataSyncStatus } from './db';
 
@@ -27,18 +26,75 @@ export const getAddressForWallet = async (walletPrivateKey: JWKInterface) => {
   return arweave.wallets.jwkToAddress(walletPrivateKey);
 };
 
+// Creates a new Arweave wallet
 export const generateWallet = async (): Promise<Wallet> => {
   const walletPrivateKey = await arweave.wallets.generate();
   const walletPublicKey = await getAddressForWallet(walletPrivateKey);
   return { walletPrivateKey, walletPublicKey };
 };
 
+// Imports an existing wallet on a local drive
 export const getLocalWallet = async (existingWalletPath: string) => {
   const walletPrivateKey = JSON.parse(
     fs.readFileSync(existingWalletPath).toString()
   );
   const walletPublicKey = await getAddressForWallet(walletPrivateKey);
   return { walletPrivateKey, walletPublicKey };
+};
+
+// Gets all of the ardrive IDs from a user's wallet
+export const getAllMyArDriveIds = async (walletPublicKey: any) => {
+  try {
+    const query = {
+      query: `query {
+      transactions(
+        first: 1000
+        sort: HEIGHT_ASC
+        owners: ["${walletPublicKey}"]
+        tags: [
+          { name: "App-Name", values: "${appName}" }
+          { name: "App-Version", values: "${appVersion}" }
+        ]
+      ) {
+        edges {
+          node {
+            id
+            tags {
+              name
+              value
+            }
+          }
+        }
+      }
+    }`,
+    };
+    const response = await arweave.api
+      .request()
+      // .post('http://arca.arweave.io/graphql', query);
+      .post('https://arweave.dev/graphql', query);
+    const { data } = response.data;
+    const { transactions } = data;
+    const { edges } = transactions;
+    const arDriveIds = new Array(1000);
+    let x = 0;
+    await asyncForEach(edges, async (edge: any) => {
+      const { node } = edge;
+      const { tags } = node;
+      tags.forEach((tag: any) => {
+        const key = tag.name;
+        if (key === 'Drive-Id') {
+          arDriveIds[x] = tag.value;
+        }
+      });
+      x += 1;
+    });
+    const uniqueArDriveIds = arDriveIds.filter(
+      (item, i, ar) => ar.indexOf(item) === i
+    );
+    return uniqueArDriveIds;
+  } catch (err) {
+    return Promise.reject(err);
+  }
 };
 
 // Gets all of the transactions from a user's wallet, filtered by owner and ardrive version.
@@ -147,6 +203,7 @@ export const getWalletBalance = async (walletPublicKey: string) => {
   }
 };
 
+// Creates an arweave transaction to upload file data (and no metadata) to arweave
 export const createArDriveDataTransaction = async (
   user: { jwk: string; owner: string },
   filePath: string,
@@ -191,6 +248,7 @@ export const createArDriveDataTransaction = async (
   }
 };
 
+// Creates an arrweave transaction to upload only file metadata to arweave
 export const createArDriveMetaDataTransaction = async (
   user: { jwk: string; owner: string },
   primaryFileMetaDataTags: {

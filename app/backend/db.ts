@@ -120,51 +120,6 @@ const createSyncTable = () => {
   return run(sql);
 };
 
-const createQueueTable = () => {
-  const sql = `CREATE TABLE IF NOT EXISTS Queue (
-          id integer NOT NULL PRIMARY KEY,
-          tx_id text,
-          owner text,
-          file_path text NOT NULL UNIQUE,
-          file_name text,
-          file_hash text,
-          file_size text,
-          sync_status INTEGER DEFAULT 0,
-          ignore INTEGER DEFAULT 0,
-          isPublic text DEFAULT 0,
-          file_modified_date text,
-          ardrive_path text,
-          ardrive_version text,
-          keywords text,
-          permaweb_link text,
-          prev_tx_id text,
-          block_hash text,
-          file_version INTEGER DEFAULT 0
-       );`;
-  return run(sql);
-};
-
-const createCompletedTable = () => {
-  const sql = `CREATE TABLE IF NOT EXISTS Completed (
-          id integer NOT NULL PRIMARY KEY,
-          tx_id text NOT NULL UNIQUE,
-          isLocal text,
-          file_name text,
-          file_hash text,
-          owner text,
-          permaweb_link text,
-          isPublic text DEFAULT 0,
-          file_modified_date text,
-          ardrive_path text,
-          ardrive_version text,
-          ignore INTEGER DEFAULT 0,
-          keywords text,
-          prev_tx_id text,
-          block_hash text
-       );`;
-  return run(sql);
-};
-
 export const addFileToSyncTable = (file: {
   appName: any;
   appVersion: any;
@@ -457,29 +412,6 @@ export const createArDriveProfile = (profile: {
   );
 };
 
-export const getByFileNameAndHash_fromCompleted = (file: {
-  file_hash: string;
-  file_name: string;
-}) => {
-  const { file_hash, file_name } = file;
-  return get(`SELECT * FROM Completed WHERE file_hash = ? AND file_name = ?`, [
-    file_hash,
-    file_name,
-  ]);
-};
-
-export const getByFileName_fromCompleted = (file_name: string) => {
-  return get(`SELECT * FROM Completed WHERE file_name= ?`, [file_name]);
-};
-
-export const getByTx_fromCompleted = (tx_id: string) => {
-  return get(`SELECT file_name FROM Completed WHERE tx_id = ?`, [tx_id]);
-};
-
-export const getAllIncomplete_fromCompleted = () => {
-  return all('SELECT * FROM COMPLETED WHERE isLocal = 0 AND ignore = 0');
-};
-
 export const getAll_fromProfileWithWalletPublicKey = (
   wallet_public_key: string
 ) => {
@@ -490,23 +422,6 @@ export const getAll_fromProfileWithWalletPublicKey = (
 
 export const deleteFromSyncTable = (id: string) => {
   return get(`DELETE FROM Sync WHERE id = ?`, [id]);
-};
-
-export const remove_fromQueue = (file_path: string) => {
-  return get(`DELETE FROM Queue WHERE file_path = ?`, [file_path]);
-};
-
-export const updateQueueStatus = (file: {
-  tx_id: any;
-  isPublic: any;
-  file_path: any;
-}) => {
-  const { tx_id, isPublic, file_path } = file;
-  return run(`UPDATE Queue SET tx_id = ?, isPublic = ? WHERE file_path = ?`, [
-    tx_id,
-    isPublic,
-    file_path,
-  ]);
 };
 
 export const setPermaWebFileToIgnore = (id: string) => {
@@ -521,34 +436,8 @@ export const updateFileDownloadStatus = (isLocal: string, id: string) => {
   return get(`UPDATE Sync SET isLocal = ? WHERE id = ?`, [isLocal, id]);
 };
 
-export const setCompletedFileToDownload = (file_name: string) => {
-  return get(`UPDATE Completed SET isLocal = 0 WHERE file_name = ?`, [
-    file_name,
-  ]);
-};
-
-export const setQueuedFileToPublic = (file_path: string) => {
-  return get(`UPDATE Queue SET isPublic = 1 WHERE file_path = ?`, [file_path]);
-};
-
-export const getByFilePath_fromQueue = (file_path: string) => {
-  return get(`SELECT * FROM Queue WHERE file_path = ?`, [file_path]);
-};
-
-export const getAllUploaded_fromQueue = () => {
-  return all('SELECT * FROM Queue WHERE tx_id != 0');
-};
-
 export const getAll_fromProfile = (): Promise<any[]> => {
   return all('SELECT * FROM Profile');
-};
-
-export const getAll_fromCompleted = () => {
-  return all('SELECT * FROM COMPLETED WHERE ignore = 0');
-};
-
-export const getFilesToUpload_fromQueue = () => {
-  return all('SELECT * FROM Queue WHERE tx_id = 0 ');
 };
 
 const createOrOpenDb = (dbFilePath: string): Promise<Database> => {
@@ -565,8 +454,6 @@ const createOrOpenDb = (dbFilePath: string): Promise<Database> => {
 
 const createTablesInDB = async () => {
   await createProfileTable();
-  await createQueueTable();
-  await createCompletedTable();
   await createSyncTable();
 };
 
